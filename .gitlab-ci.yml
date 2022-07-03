@@ -1,84 +1,81 @@
-# In 'build', we will use cmake & make to build woo..
+# You can override the included template(s) by including variable overrides
+# SAST customization: https://docs.gitlab.com/ee/user/application_security/sast/#customizing-the-sast-settings
+# Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/#customizing-settings
+# Dependency Scanning customization: https://docs.gitlab.com/ee/user/application_security/dependency_scanning/#customizing-the-dependency-scanning-settings
+# Note that environment variables can be set in several places
+# See https://docs.gitlab.com/ee/ci/variables/#cicd-variable-precedence
 variables:
   CACHE_FALLBACK_KEY: wo-build-master
-
 build_release:
   stage: build
   script:
-    - if [ ! -d build ]; then mkdir build; fi
-    - cd build
-    - rm -f CMakeCache.txt
-    - cmake .. -DWO_MAKE_OUTPUT_IN_SAME_PATH=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO -DBUILD_SHARED_LIBS=ON
-    - make
-    - cd ..
+  - if [ ! -d build ]; then mkdir build; fi
+  - cd build
+  - rm -f CMakeCache.txt
+  - cmake .. -DWO_MAKE_OUTPUT_IN_SAME_PATH=ON -DCMAKE_BUILD_TYPE=RELWITHDEBINFO -DBUILD_SHARED_LIBS=ON
+  - make
+  - cd ..
   artifacts:
     name: ubuntu-wo-build-release-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHA
     paths:
-      - build/woodriver
-      - build/libwoo.so
+    - build/woodriver
+    - build/libwoo.so
     expire_in: 1 week
-  # depending on your build setup it's most likely a good idea to cache outputs to reduce the build time
   cache:
     when: on_success
     key: wo-build-release-$CI_COMMIT_REF_SLUG
     paths:
-        - "build/*"
+    - build/*
   tags:
-    - ubuntu1804_cicd
-
+  - ubuntu1804_cicd
 test_coverage_debug:
   stage: test
   script:
-    - if [ ! -d build ]; then mkdir build; fi
-    - cd build
-    - rm -f CMakeCache.txt
-    - cmake .. -DWO_MAKE_OUTPUT_IN_SAME_PATH=ON -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_SHARED_LIBS=ON -DWO_BUILD_FOR_COVERAGE_TEST=ON
-    - make
-    - cd ..
-    # Begin coverage test
-    - sudo ./build/woodriver_debug test/test_all.wo --coroutine-thread-count 2 --enable-ctrlc-debug 0
-    - cd build/src/CMakeFiles/woolang.dir
-    - sudo gcov -b -l -p -c *.gcno
-    - cd ../../../../
-    - pwd
-    - sudo sudo gcovr . -r ./src -g -k
-    - sudo gcovr . -r ./src -g -k --html --html-details -o report.html
+  - if [ ! -d build ]; then mkdir build; fi
+  - cd build
+  - rm -f CMakeCache.txt
+  - cmake .. -DWO_MAKE_OUTPUT_IN_SAME_PATH=ON -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_SHARED_LIBS=ON
+    -DWO_BUILD_FOR_COVERAGE_TEST=ON
+  - make
+  - cd ..
+  - sudo ./build/woodriver_debug test/test_all.wo --coroutine-thread-count 2 --enable-ctrlc-debug
+    0
+  - cd build/src/CMakeFiles/woolang.dir
+  - sudo gcov -b -l -p -c *.gcno
+  - cd ../../../../
+  - pwd
+  - sudo sudo gcovr . -r ./src -g -k
+  - sudo gcovr . -r ./src -g -k --html --html-details -o report.html
   artifacts:
     name: ubuntu-wo-coverage-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHA
     paths:
-      - build/woodriver_debug
-      - build/libwoo_debug.so
-      - build/*.gcov
-      - "*.html"
-      - core
+    - build/woodriver_debug
+    - build/libwoo_debug.so
+    - build/*.gcov
+    - "*.html"
+    - core
     expire_in: 1 week
-  # depending on your build setup it's most likely a good idea to cache outputs to reduce the build time
   cache:
     when: on_success
     key: wo-build-coverage-$CI_COMMIT_REF_SLUG
     paths:
-        - "build/*"
+    - build/*
   tags:
-    - ubuntu1804_cicd
-
-# run tests using the binary built before
-
+  - ubuntu1804_cicd
 test_release:
   stage: test
   script:
-    - ./build/woodriver test/test_all.wo --coroutine-thread-count 2 --enable-ctrlc-debug 0
+  - "./build/woodriver test/test_all.wo --coroutine-thread-count 2 --enable-ctrlc-debug
+    0"
   tags:
-    - ubuntu1804_cicd
+  - ubuntu1804_cicd
   artifacts:
-    name: "test-report-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHA"
+    name: test-report-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHA
     paths:
-      - core
+    - core
     when: on_failure
     expire_in: 1 week
-  # cache:
-  #   key: wo-build-debug-$CI_COMMIT_REF_SLUG
-  #   policy: pull
-  #   paths:
-  #       - "build/*"
   dependencies:
-    - build_release
+  - build_release
+include:
+- template: Security/Secret-Detection.gitlab-ci.yml
